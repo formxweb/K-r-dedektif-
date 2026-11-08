@@ -1,0 +1,17 @@
+# Gerçek işletme verisi — public repoya asla girmez
+/samples/
+
+# Ortam ve anahtarlar
+.env
+.env.*
+!.env.example
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+.DS_Store

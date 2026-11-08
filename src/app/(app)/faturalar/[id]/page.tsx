@@ -72,7 +72,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
       {sp.islendi && <div className="mb-5"><Callout tone="pos" title="Fatura işlendi">Stok ve ortalama maliyetler güncellendi.{alerts.some((a) => a.alert_type === "margin_drop") ? " Marjı düşen ürünler aşağıda." : ""}</Callout></div>}
       {inv.total_mismatch && (
         <div className="mb-4"><Callout tone="neg" title="Fatura toplamı satırlarla tutmuyor">
-          Belgedeki genel toplam <Money value={inv.doc_total_incl_vat} />, satırlardan hesaplanan <Money value={inv.calc_total_incl_vat} />. Fark 0,05 TL'den büyük; tedarikçiyle kontrol edin. Maliyet satırlardan hesaplanır.
+          Belgedeki genel toplam <Money value={inv.doc_total_incl_vat} />, satırlardan hesaplanan <Money value={inv.calc_total_incl_vat} />. Fark 0,05 TL’den büyük; tedarikçiyle kontrol edin. Maliyet satırlardan hesaplanır.
         </Callout></div>
       )}
       {warnings.length > 0 && <div className="mb-4 flex flex-col gap-2">{warnings.map((w) => <Callout key={w} tone="info">{w}</Callout>)}</div>}

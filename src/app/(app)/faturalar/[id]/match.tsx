@@ -20,10 +20,7 @@ function ProductPicker({ name, initial }: { name: string; initial?: Product | nu
   useEffect(() => {
     if (chosen && q === chosen.name) return;
     if (timer.current) clearTimeout(timer.current);
-    if (q.trim().length < 2) {
-      setItems([]);
-      return;
-    }
+    if (q.trim().length < 2) return;
     timer.current = setTimeout(async () => {
       try {
         const r = await fetch(`/api/urun-ara?q=${encodeURIComponent(q)}`);
@@ -54,7 +51,7 @@ function ProductPicker({ name, initial }: { name: string; initial?: Product | nu
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Ürün adı, barkod veya stok kodu"
       />
-      {open && items.length > 0 && (
+      {open && q.trim().length >= 2 && items.length > 0 && (
         <ul id={listId} role="listbox" className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-md border border-line bg-surface shadow-[0_8px_24px_rgba(8,17,31,0.12)]">
           {items.map((p) => (
             <li key={p.id} role="option" aria-selected={chosen?.id === p.id}>

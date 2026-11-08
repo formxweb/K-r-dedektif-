@@ -231,7 +231,7 @@ export function transformRows(
     const code = r.text("code");
     const name = r.text("name");
     const found = index.find(barcode, code, name);
-    let product = found.product;
+    const product = found.product;
     let status: RowStatus = "ok";
     let parsed: Record<string, unknown> | null = null;
 

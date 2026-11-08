@@ -186,7 +186,7 @@ export default async function JobPage({ params, searchParams }: { params: Promis
           {diffs.length > 0 && (
             <div className="mb-4">
               <h3 className="mb-1 text-[15px] font-semibold">Sayım farkı önerileri</h3>
-              <p className="mb-3 text-[13px] text-muted">POS'taki stok, sistemin hareketlerden hesapladığı stoktan farklı. Onayladığınız farklar “sayım farkı” olarak kâr tablosuna yazılır.</p>
+              <p className="mb-3 text-[13px] text-muted">POS’taki stok, sistemin hareketlerden hesapladığı stoktan farklı. Onayladığınız farklar “sayım farkı” olarak kâr tablosuna yazılır.</p>
               <form action={setCountApprovals}>
                 <input type="hidden" name="job_id" value={id} />
                 <TableFrame footer={staged ? <button className={buttonClass("secondary")}>Seçimi kaydet</button> : undefined}>

@@ -4,7 +4,7 @@ import { friendlyError } from "@/lib/errors";
 
 /** PostgREST sayfa sınırını (1000 satır) aşmak için sayfa sayfa okur. */
 export async function fetchAll<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message?: string; code?: string } | null }>,
+  build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message?: string; code?: string } | null }>,
   pageSize = 1000,
   max = 100_000,
 ): Promise<T[]> {
@@ -12,7 +12,7 @@ export async function fetchAll<T>(
   for (let from = 0; from < max; from += pageSize) {
     const { data, error } = await build(from, from + pageSize - 1);
     if (error) throw new Error(friendlyError(error));
-    const rows = data ?? [];
+    const rows = (data ?? []) as T[];
     out.push(...rows);
     if (rows.length < pageSize) break;
   }

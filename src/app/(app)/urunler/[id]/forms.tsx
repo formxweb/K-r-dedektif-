@@ -76,7 +76,7 @@ export function SupplierForm({ productId, unit, suppliers, current }: {
   current: { supplier_id: string; order_unit_name: string | null; order_unit_factor: string | null; min_order_qty: string | null } | null;
 }) {
   const [state, action] = useActionState(setProductSupplier, undefined);
-  if (suppliers.length === 0) return <p className="text-[14px] text-muted">Henüz tedarikçi yok. Alış faturası yüklendiğinde otomatik eklenir veya Ayarlar › Tedarikçiler'den ekleyebilirsiniz.</p>;
+  if (suppliers.length === 0) return <p className="text-[14px] text-muted">Henüz tedarikçi yok. Alış faturası yüklendiğinde otomatik eklenir veya Ayarlar › Tedarikçiler’den ekleyebilirsiniz.</p>;
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="product_id" value={productId} />

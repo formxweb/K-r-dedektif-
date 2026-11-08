@@ -101,7 +101,7 @@ export function MappingForm(p: Props) {
         )}
         {p.kind === "purchase_invoice_table" && (
           <>
-            <Field label="Tedarikçi" htmlFor="supplier_id" hint={p.suppliers.length === 0 ? "Önce Ayarlar › Tedarikçiler'den tedarikçi ekleyin." : undefined}>
+            <Field label="Tedarikçi" htmlFor="supplier_id" hint={p.suppliers.length === 0 ? "Önce Ayarlar › Tedarikçiler’den tedarikçi ekleyin." : undefined}>
               <Select id="supplier_id" name="supplier_id" defaultValue={p.params.supplier_id ?? ""} required>
                 <option value="" disabled>Seçin</option>
                 {p.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -149,7 +149,7 @@ export function MappingForm(p: Props) {
                           {o.l}
                         </label>
                       ))}
-                      <span className="self-center text-faint">Emin değilseniz POS'taki raf fiyatıyla karşılaştırın.</span>
+                      <span className="self-center text-faint">Emin değilseniz POS’taki raf fiyatıyla karşılaştırın.</span>
                     </div>
                   </fieldset>
                 )}

@@ -33,11 +33,14 @@ export function AppShell({
   children: ReactNode;
 }) {
   const path = usePathname();
-  const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => setMenuOpen(false), [path]);
+  // Menü, açıldığı sayfaya bağlıdır: sayfa değişince kendiliğinden kapanır.
+  const [menuPath, setMenuPath] = useState<string | null>(null);
+  const menuOpen = menuPath === path;
+  const setMenuOpen = (v: boolean | ((p: boolean) => boolean)) =>
+    setMenuPath((cur) => ((typeof v === "function" ? v(cur === path) : v) ? path : null));
   useEffect(() => {
     if (!menuOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuPath(null);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);

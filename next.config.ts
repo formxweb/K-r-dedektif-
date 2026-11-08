@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   // Tüm sayfalar oturuma bağlı ve dinamik; Cache Components kullanılmıyor.
   serverExternalPackages: ["xlsx"],
   experimental: {
-    serverActions: { bodySizeLimit: "12mb" },
+    serverActions: { bodySizeLimit: "4.5mb" },
   },
   turbopack: {
     rules: {

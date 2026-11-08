@@ -13,10 +13,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ]);
 
   const nav: NavItem[] = [
-    { href: "/genel-bakis", label: "Genel bakış", mobile: "bar" },
+    { href: "/genel-bakis", label: "Genel bakış", short: "Özet", mobile: "bar" },
     { href: "/urunler", label: "Ürünler", mobile: "bar" },
-    { href: "/veri", label: "Veri yükle", mobile: "bar" },
-    { href: "/siparis-onerileri", label: "Sipariş önerileri", mobile: "bar" },
+    { href: "/veri", label: "Veri yükle", short: "Yükle", mobile: "bar" },
+    { href: "/siparis-onerileri", label: "Sipariş önerileri", short: "Sipariş", mobile: "bar" },
     { href: "/faturalar", label: "Alış faturaları", badge: draftCount ?? 0, mobile: "menu" },
     { href: "/giderler", label: "Giderler", mobile: "menu" },
     { href: "/uyarilar", label: "Uyarılar", badge: alertCount ?? 0, mobile: "menu" },

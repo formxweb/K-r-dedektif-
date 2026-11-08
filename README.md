@@ -47,6 +47,7 @@ Migration'lar `supabase/migrations/` altında, sırayla uygulanır.
 - Uygulama: https://kardedektifi.vercel.app (Vercel, fra1)
 - Veritabanı: Supabase `kardedektifi` (eu-central-1)
 - Auth: Site URL ve dönüş adresleri (`/auth/callback`) ayarlı, e-posta doğrulama açık, en az 8 karakter şifre.
+- Dosyalar tarayıcıdan doğrudan Supabase Storage'a yüklenir (imzalı adres); sunucu dosyayı depodan okur, hash'i orada hesaplar. Sınır 10 MB. Doğrudan yükleme olmazsa ≤ 4 MB dosyalar sunucu üzerinden yüklenir.
 - Not: Supabase'in yerleşik e-posta servisi saatlik düşük limitlidir; birden fazla kullanıcıya açılmadan önce özel SMTP (ör. Resend) tanımlanmalı.
 
 ## Testler
@@ -54,6 +55,7 @@ Migration'lar `supabase/migrations/` altında, sırayla uygulanır.
 ```bash
 npm test            # alan mantığı + dosya okuma (56 test)
 npm run test:db     # veritabanı (26 test) — yerel Postgres 16 gerekir
+psql … -f tests/perf/product-list-5000.sql   # 5000 ürünlük liste: önizleme/aktarım süresi
 ```
 
 Veritabanı testleri `tests/db/reset-db.sh` ile boş bir veritabanına Supabase taklidini (`auth.uid()`, roller) ve tüm migration'ları kurar. Bağlantı: `KD_TEST_ADMIN_URL` (varsayılan `postgresql://postgres@127.0.0.1:54329/postgres`).

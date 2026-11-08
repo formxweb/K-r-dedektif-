@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -13,11 +13,17 @@ import { FIELDS, missingRequired } from "@/lib/import/fields";
 import { transformInvoiceTable, transformRows, type ProfileOptions, type StagedRow } from "@/lib/import/transform";
 import { parseUblInvoice, UblError } from "@/lib/import/ubl";
 import { fetchAll, loadProducts, loadVatLookup } from "@/lib/data/common";
-import { loadJob, loadJobTable } from "@/lib/data/imports";
+import { clearCommitPreview, loadJob, loadJobTable } from "@/lib/data/imports";
 import { isIsoDate } from "@/lib/domain/dates";
 
 const TABLE_KINDS = ["product_list", "sales_summary", "sales_receipts", "purchase_invoice_table"] as const;
 type TableKind = (typeof TABLE_KINDS)[number];
+
+function withoutPreview(p: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...p };
+  delete rest.preview;
+  return rest;
+}
 
 function sha256(buf: Uint8Array): string {
   return createHash("sha256").update(buf).digest("hex");
@@ -40,44 +46,117 @@ async function existingJobWithHash(supabase: Supa, orgId: string, kind: string, 
   return data;
 }
 
-async function uploadSource(supabase: Supa, orgId: string, jobId: string, fileName: string, buf: Uint8Array, type: string) {
-  const path = `${orgId}/${jobId}/${safeFileName(fileName)}`;
-  const { error } = await supabase.storage.from("imports").upload(path, buf, { contentType: type || "application/octet-stream", upsert: false });
-  if (error) throw new Error("Dosya depolamaya kaydedilemedi. Tekrar deneyin.");
-  await supabase.from("import_jobs").update({ storage_path: path }).eq("id", jobId);
-  return path;
+const UPLOAD_EXT: Record<string, RegExp> = {
+  purchase_invoice_xml: /\.xml$/i,
+  product_list: /\.(xls|xlsx|csv|txt)$/i,
+  sales_summary: /\.(xls|xlsx|csv|txt)$/i,
+  sales_receipts: /\.(xls|xlsx|csv|txt)$/i,
+  purchase_invoice_table: /\.(xls|xlsx|csv|txt)$/i,
+};
+
+export interface UploadPlanResult {
+  ok?: boolean;
+  error?: string;
+  uploads?: Array<{ path: string; token: string }>;
 }
 
+export interface UploadRegisterResult {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  redirect?: string;
+  dupJobId?: string;
+}
+
+const FALLBACK_MAX_BYTES = 4 * 1024 * 1024;
+
+const fileMetaSchema = z.object({ name: z.string().min(1).max(255), size: z.number().int().nonnegative(), type: z.string().max(200) });
+
 // ---------------------------------------------------------------------------
-// 1) Dosya yükleme
+// 1) Dosya yükleme — tarayıcı dosyayı doğrudan Supabase Storage'a yükler
+//    (Vercel'in 4,5 MB istek sınırına takılmamak için). Sunucu önce imzalı yükleme
+//    izni verir, yükleme bitince dosyayı depodan okuyup aktarımı oluşturur.
 // ---------------------------------------------------------------------------
-export async function uploadImport(_: ActionState | undefined, form: FormData): Promise<ActionState> {
+export async function prepareUploads(input: { kind: string; files: Array<{ name: string; size: number; type: string }> }): Promise<UploadPlanResult> {
   const { org } = await requireOrg();
   const supabase = await createClient();
-  const kind = String(form.get("kind") ?? "");
-  const files = form.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
-  if (files.length === 0) return { fieldErrors: { file: "Bir dosya seçin." } };
-  if (files.some((f) => f.size > MAX_FILE_BYTES)) return { fieldErrors: { file: "Dosya 10 MB'tan büyük olamaz." } };
+  const kind = String(input.kind ?? "");
+  const ext = UPLOAD_EXT[kind];
+  if (!ext) return { error: "Dosya türünü seçin." };
+  const files = z.array(fileMetaSchema).safeParse(input.files);
+  if (!files.success || files.data.length === 0) return { error: "Bir dosya seçin." };
+  if (kind !== "purchase_invoice_xml" && files.data.length > 1) return { error: "Bu türde tek seferde bir dosya yüklenir." };
+  if (files.data.length > 20) return { error: "Tek seferde en fazla 20 fatura yükleyebilirsiniz." };
+  for (const f of files.data) {
+    if (!ext.test(f.name)) return { error: kind === "purchase_invoice_xml" ? `${f.name}: sadece .xml uzantılı e-Fatura dosyaları yüklenebilir.` : `${f.name}: desteklenen türler .xls, .xlsx, .csv.` };
+    if (f.size === 0) return { error: `${f.name}: dosya boş.` };
+    if (f.size > MAX_FILE_BYTES) return { error: `${f.name}: dosya 10 MB'tan büyük. Raporu daha kısa bir tarih aralığıyla dışa aktarın.` };
+  }
+  const uploads: Array<{ path: string; token: string }> = [];
+  for (const f of files.data) {
+    const path = `${org.id}/gelen/${randomUUID()}/${safeFileName(f.name)}`;
+    const { data, error } = await supabase.storage.from("imports").createSignedUploadUrl(path);
+    if (error || !data) return { error: "Yükleme hazırlanamadı. Sayfayı yenileyip tekrar deneyin." };
+    uploads.push({ path, token: data.token });
+  }
+  return { ok: true, uploads };
+}
+
+/** Yedek yol: tarayıcıdan depoya doğrudan yükleme olmazsa küçük dosyalar (≤ 4 MB) sunucu üzerinden aynı yola yazılır. */
+export async function uploadViaServer(form: FormData): Promise<{ ok?: boolean; error?: string }> {
+  const { org } = await requireOrg();
+  const supabase = await createClient();
+  const path = String(form.get("path") ?? "");
+  const file = form.get("file");
+  if (!path.startsWith(`${org.id}/gelen/`) || path.includes("..")) return { error: "Geçersiz dosya yolu." };
+  if (!(file instanceof File) || file.size === 0) return { error: "Dosya boş." };
+  if (file.size > FALLBACK_MAX_BYTES) return { error: "Dosya yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin." };
+  const { error } = await supabase.storage.from("imports").upload(path, new Uint8Array(await file.arrayBuffer()), {
+    contentType: file.type || "application/octet-stream",
+    upsert: false,
+  });
+  if (error) return { error: "Dosya kaydedilemedi. Biraz sonra tekrar deneyin." };
+  return { ok: true };
+}
+
+async function readUploaded(supabase: Supa, orgId: string, path: string): Promise<Uint8Array> {
+  if (!path.startsWith(`${orgId}/gelen/`) || path.includes("..")) throw new Error("Geçersiz dosya yolu.");
+  const { data, error } = await supabase.storage.from("imports").download(path);
+  if (error || !data) throw new Error("Yüklenen dosya okunamadı. Tekrar yükleyin.");
+  const buf = new Uint8Array(await data.arrayBuffer());
+  if (buf.byteLength > MAX_FILE_BYTES) throw new Error("Dosya 10 MB'tan büyük.");
+  return buf;
+}
+
+async function discard(supabase: Supa, path: string) {
+  await supabase.storage.from("imports").remove([path]);
+}
+
+export async function registerUploads(input: { kind: string; files: Array<{ path: string; name: string; size: number; type: string }> }): Promise<UploadRegisterResult> {
+  const { org } = await requireOrg();
+  const supabase = await createClient();
+  const kind = String(input.kind ?? "");
+  const files = (input.files ?? []).slice(0, 20);
+  if (!UPLOAD_EXT[kind] || files.length === 0) return { error: "Yükleme bilgisi eksik. Tekrar deneyin." };
 
   if (kind === "purchase_invoice_xml") {
     const results: string[] = [];
     const errors: string[] = [];
     let lastInvoice: string | null = null;
-    for (const f of files.slice(0, 20)) {
-      const buf = new Uint8Array(await f.arrayBuffer());
+    for (const f of files) {
       try {
-        if (!/\.xml$/i.test(f.name)) throw new UblError("Sadece .xml uzantılı e-Fatura dosyaları yüklenebilir.");
+        const buf = await readUploaded(supabase, org.id, f.path);
         const hash = sha256(buf);
         const dup = await existingJobWithHash(supabase, org.id, kind, hash);
         if (dup) throw new UblError(`Bu dosya ${dup.status === "committed" ? "zaten işlenmiş" : "zaten yüklenmiş ve eşleştirme bekliyor"}.`);
         const inv = parseUblInvoice(decodeText(buf).text);
         const { data: job, error } = await supabase
           .from("import_jobs")
-          .insert({ organization_id: org.id, kind, file_name: f.name, file_hash: hash, file_size: f.size, row_count: inv.lines.length, ok_count: inv.lines.length, params: { warnings: inv.warnings } })
+          .insert({ organization_id: org.id, kind, file_name: f.name, file_hash: hash, file_size: buf.byteLength, storage_path: f.path,
+                    row_count: inv.lines.length, ok_count: inv.lines.length, params: { warnings: inv.warnings } })
           .select("id")
           .single();
         if (error) throw error;
-        await uploadSource(supabase, org.id, job.id, f.name, buf, "application/xml");
         const { data: rows, error: rowErr } = await supabase
           .from("import_rows")
           .insert(inv.lines.map((l) => ({ organization_id: org.id, job_id: job.id, row_number: l.line_no, raw: l, parsed: l, status: "ok" })))
@@ -96,39 +175,47 @@ export async function uploadImport(_: ActionState | undefined, form: FormData): 
         lastInvoice = String(invId);
         results.push(`${inv.header.invoice_no} (${inv.lines.length} satır)`);
       } catch (e) {
-        errors.push(`${f.name}: ${e instanceof UblError ? e.message : friendlyError(e)}`);
+        await discard(supabase, f.path);
+        errors.push(`${f.name}: ${e instanceof UblError ? e.message : e instanceof Error && !("code" in e) ? e.message : friendlyError(e)}`);
       }
     }
     revalidatePath("/faturalar");
     revalidatePath("/veri");
-    if (results.length === 1 && errors.length === 0 && lastInvoice) redirect(`/faturalar/${lastInvoice}`);
+    if (results.length === 1 && errors.length === 0 && lastInvoice) return { ok: true, redirect: `/faturalar/${lastInvoice}` };
+    if (results.length > 1 && errors.length === 0) return { ok: true, redirect: "/faturalar?durum=draft" };
     if (results.length === 0) return { error: errors.join(" · ") };
-    return {
-      ok: true,
-      message: `${results.length} fatura eşleştirmeye hazır: ${results.join(", ")}.`,
-      error: errors.length ? errors.join(" · ") : undefined,
-    };
+    return { ok: true, message: `${results.length} fatura eşleştirmeye hazır: ${results.join(", ")}.`, error: errors.length ? errors.join(" · ") : undefined };
   }
 
-  if (!(TABLE_KINDS as readonly string[]).includes(kind)) return { fieldErrors: { kind: "Dosya türünü seçin." } };
+  if (!(TABLE_KINDS as readonly string[]).includes(kind)) return { error: "Dosya türünü seçin." };
   const f = files[0]!;
-  const buf = new Uint8Array(await f.arrayBuffer());
+  let buf: Uint8Array;
+  try {
+    buf = await readUploaded(supabase, org.id, f.path);
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
   let table;
   try {
     table = readTable(buf, f.name);
   } catch (e) {
-    return { fieldErrors: { file: e instanceof Error ? e.message : "Dosya okunamadı." } };
+    await discard(supabase, f.path);
+    return { error: e instanceof Error ? e.message : "Dosya okunamadı." };
   }
   const sheet = table.sheets[0];
-  if (!sheet || sheet.rows.length < 2) return { fieldErrors: { file: "Dosyada veri satırı bulunamadı." } };
+  if (!sheet || sheet.rows.length < 2) {
+    await discard(supabase, f.path);
+    return { error: "Dosyada veri satırı bulunamadı." };
+  }
   const hash = sha256(buf);
   const dup = await existingJobWithHash(supabase, org.id, kind, hash);
   if (dup) {
+    await discard(supabase, f.path);
     return {
       error: dup.status === "committed"
         ? "Bu dosya daha önce işlenmiş. Aynı dosya iki kez işlenemez. Yanlışsa önce eski aktarımı geri alın."
         : "Bu dosya zaten yüklenmiş ve işlenmeyi bekliyor.",
-      data: { jobId: dup.id },
+      dupJobId: dup.id,
     };
   }
   const headerRow = detectHeaderRow(sheet.rows);
@@ -140,19 +227,17 @@ export async function uploadImport(_: ActionState | undefined, form: FormData): 
   const { data: job, error } = await supabase
     .from("import_jobs")
     .insert({
-      organization_id: org.id, kind, file_name: f.name, file_hash: hash, file_size: f.size, profile_id: profile?.id ?? null,
+      organization_id: org.id, kind, file_name: f.name, file_hash: hash, file_size: buf.byteLength, storage_path: f.path, profile_id: profile?.id ?? null,
       params: { sheet: sheet.name, header_row: profile?.header_row ?? headerRow, encoding: table.encoding, format: table.format },
     })
     .select("id")
     .single();
-  if (error) return { error: friendlyError(error) };
-  try {
-    await uploadSource(supabase, org.id, job.id, f.name, buf, f.type);
-  } catch (e) {
-    await supabase.rpc("cancel_import", { p_job: job.id });
-    return { error: e instanceof Error ? e.message : friendlyError(e) };
+  if (error) {
+    await discard(supabase, f.path);
+    return { error: friendlyError(error) };
   }
-  redirect(`/veri/${job.id}`);
+  revalidatePath("/veri");
+  return { ok: true, redirect: `/veri/${job.id}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +365,7 @@ export async function stageJob(_: ActionState | undefined, form: FormData): Prom
   }
   const { error: upErr } = await supabase
     .from("import_jobs")
-    .update({ params: { ...job.params, ...params, header_row: headerRow, mapping, options: opts }, row_count: staged.length, ok_count: c.ok, warning_count: c.warning, error_count: c.error, profile_id: profileId })
+    .update({ params: { ...withoutPreview(job.params), ...params, header_row: headerRow, mapping, options: opts }, row_count: staged.length, ok_count: c.ok, warning_count: c.warning, error_count: c.error, profile_id: profileId })
     .eq("id", job.id);
   if (upErr) return { error: friendlyError(upErr) };
 
@@ -323,6 +408,7 @@ export async function setCountApprovals(form: FormData): Promise<void> {
       await supabase.from("import_rows").update({ parsed: { ...r.parsed, apply_count: want } }).eq("id", r.id);
     }
   }
+  await clearCommitPreview(supabase, jobId);
   revalidatePath(`/veri/${jobId}`);
 }
 
@@ -364,6 +450,7 @@ export async function skipUnmatched(form: FormData): Promise<void> {
   const supabase = await createClient();
   const jobId = String(form.get("job_id"));
   await supabase.from("import_rows").update({ status: "skipped", messages: ["Kullanıcı atladı: ürün eşleşmedi"] }).eq("job_id", jobId).eq("status", "needs_review");
+  await clearCommitPreview(supabase, jobId);
   revalidatePath(`/veri/${jobId}`);
 }
 

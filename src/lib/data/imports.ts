@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient, type Supa } from "@/lib/supabase/server";
 import { readTable } from "@/lib/import/read";
+import { friendlyError } from "@/lib/errors";
 
 export interface JobRow {
   id: string;
@@ -32,3 +33,40 @@ export async function loadJobTable(jobId: string) {
   return { job, table, sheet };
 }
 
+
+interface PreviewEntry {
+  ledger_version: string;
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
+/**
+ * Kaydetme önizlemesi pahalıdır (aktarımın tamamını çalıştırıp geri sarar). Sonuç, işin
+ * params.preview alanında defter sürümüyle (ledger_version) birlikte saklanır; sürüm değişmediyse
+ * sayfa açılışında tekrar hesaplanmaz. Satırlar değiştiğinde server action'lar bu alanı siler.
+ */
+export async function getCommitPreview(
+  supabase: Supa,
+  job: JobRow,
+  ledgerVersion: string,
+): Promise<{ result: Record<string, unknown> | null; error: string | null }> {
+  const cached = job.params.preview as PreviewEntry | undefined;
+  if (cached && cached.ledger_version === ledgerVersion) {
+    return { result: cached.result ?? null, error: cached.error ?? null };
+  }
+  const r = await supabase.rpc("preview_commit", { p_job: job.id });
+  const entry: PreviewEntry = r.error
+    ? { ledger_version: ledgerVersion, error: friendlyError(r.error) }
+    : { ledger_version: ledgerVersion, result: r.data as Record<string, unknown> };
+  await supabase.from("import_jobs").update({ params: { ...job.params, preview: entry } }).eq("id", job.id).eq("status", "staged");
+  return { result: entry.result ?? null, error: entry.error ?? null };
+}
+
+/** Satırlar değiştiğinde saklanan önizlemeyi geçersiz kılar. */
+export async function clearCommitPreview(supabase: Supa, jobId: string): Promise<void> {
+  const { data } = await supabase.from("import_jobs").select("params").eq("id", jobId).single();
+  const params = { ...((data?.params ?? {}) as Record<string, unknown>) };
+  if (!("preview" in params)) return;
+  delete params.preview;
+  await supabase.from("import_jobs").update({ params }).eq("id", jobId).eq("status", "staged");
+}

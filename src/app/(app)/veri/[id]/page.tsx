@@ -7,9 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 import { friendlyError, must } from "@/lib/errors";
 import { FIELDS, KIND_LABEL, suggestMapping, type ImportKind } from "@/lib/import/fields";
 import { detectDecimalSeparator } from "@/lib/import/number";
-import { loadJobTable } from "@/lib/data/imports";
+import { getCommitPreview, loadJobTable, type JobRow } from "@/lib/data/imports";
 import { istToday } from "@/lib/domain/dates";
-import { formatDate, formatDateShort, formatQty } from "@/lib/domain/format";
+import { formatDate, formatDateShort, formatMonth, formatQty } from "@/lib/domain/format";
 import { Badge, Callout, EmptyState, Money, Page, PageHeader, Panel, Section, Table, TableFrame, Td, Th, buttonClass } from "@/components/ui";
 import { EffectsSummary } from "@/components/effects";
 import { cancelJob, setCountApprovals, skipUnmatched } from "@/server/imports";
@@ -29,7 +29,7 @@ const ROW_STATUS: Record<string, { label: string; tone: "neutral" | "pos" | "war
   skipped: { label: "Atlandı", tone: "neutral" },
 };
 
-export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ kaydedildi?: string; geri_alindi?: string }> }) {
+export default async function JobPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ kaydedildi?: string; geri_alindi?: string; geri_al?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const { org } = await requireOrg();
@@ -53,6 +53,8 @@ export default async function JobPage({ params, searchParams }: { params: Promis
     : [];
 
   const p = (job.params ?? {}) as Record<string, unknown>;
+  const spansMonths = kind === "sales_summary" && typeof p.period_start === "string" && typeof p.period_end === "string"
+    && p.period_start.slice(0, 7) !== p.period_end.slice(0, 7);
   const staged = job.status === "staged";
   const prepared = staged && total > 0;
 
@@ -60,13 +62,15 @@ export default async function JobPage({ params, searchParams }: { params: Promis
   let preview: Record<string, unknown> | null = null;
   let previewError: string | null = null;
   if (prepared && isTable && kind !== "purchase_invoice_table") {
-    const r = await supabase.rpc("preview_commit", { p_job: id });
-    if (r.error) previewError = friendlyError(r.error);
-    else preview = r.data as Record<string, unknown>;
+    // Saklanan önizleme defter sürümü değişmediyse tekrar hesaplanmaz.
+    const pv = await getCommitPreview(supabase, job as JobRow, org.ledger_version);
+    preview = pv.result;
+    previewError = pv.error;
   }
   let revertPreview: Record<string, unknown> | null = null;
   let revertError: string | null = null;
-  if (job.status === "committed") {
+  const wantsRevert = sp.geri_al === "1";
+  if (job.status === "committed" && wantsRevert) {
     const r = await supabase.rpc("preview_revert", { p_job: id });
     if (r.error) revertError = friendlyError(r.error);
     else revertPreview = r.data as Record<string, unknown>;
@@ -239,6 +243,11 @@ export default async function JobPage({ params, searchParams }: { params: Promis
             <Callout tone="neg" title="Bu aktarım şu haliyle kaydedilemez">{previewError}</Callout>
           ) : (
             <div className="flex flex-col gap-4">
+              {spansMonths && (
+                <Callout tone="warn" title="Bu rapor iki aya yayılıyor">
+                  {formatDate(String(p.period_start))} – {formatDate(String(p.period_end))} arasındaki satışların tamamı bitiş ayına ({formatMonth(String(p.period_end))}) yazılacak; {formatMonth(String(p.period_start))} kârına girmeyecek. Ay bazında doğru kâr için raporu ay sonunda bölerek (ör. 28–31 Ekim ve 1–3 Kasım) iki ayrı dosya olarak alın.
+                </Callout>
+              )}
               <PreviewFacts kind={kind} preview={preview} />
               <EffectsSummary result={preview} />
               <CommitForm jobId={id} version={String(preview?.ledger_version ?? "")} okCount={counts.ok + counts.warning} skipped={counts.error + counts.duplicate + counts.needs_review + counts.skipped} />
@@ -256,8 +265,13 @@ export default async function JobPage({ params, searchParams }: { params: Promis
               <EffectsSummary result={result} verb="değişti" />
             </div>
           </Section>
-          <Section title="Aktarımı geri al" description="Bu aktarımın oluşturduğu tüm kayıtlar tek seferde iptal edilir; stok ve maliyet zinciri yeniden hesaplanır. Silinmez, iz kalır.">
-            {revertError ? (
+          <Section id="geri-al" title="Aktarımı geri al" description="Bu aktarımın oluşturduğu tüm kayıtlar tek seferde iptal edilir; stok ve maliyet zinciri yeniden hesaplanır. Silinmez, iz kalır.">
+            {!wantsRevert ? (
+              <Panel>
+                <p className="mb-3 text-[14px] text-muted">Geri almadan önce, bu işlemin geçmiş kârlara etkisini görün. Büyük aktarımlarda hesaplama birkaç saniye sürebilir.</p>
+                <Link href={`/veri/${id}?geri_al=1#geri-al`} className={buttonClass("secondary")}>Geri almanın etkisini göster</Link>
+              </Panel>
+            ) : revertError ? (
               <Callout tone="neg" title="Bu aktarım şu an geri alınamaz">{revertError}</Callout>
             ) : (
               <Panel>

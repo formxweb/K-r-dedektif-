@@ -9,6 +9,8 @@ import { cx } from "./ui";
 export interface NavItem {
   href: string;
   label: string;
+  /** Mobil alt menüde gösterilen kısa ad (tek satıra sığması için) */
+  short?: string;
   badge?: number;
   mobile?: "bar" | "menu";
 }
@@ -100,7 +102,7 @@ export function AppShell({
                 className={cx("relative flex min-h-14 flex-col items-center justify-center px-1 text-[12px] leading-tight", isActive(path, n.href) ? "font-semibold text-text" : "text-muted")}
               >
                 <span aria-hidden className={cx("absolute inset-x-4 top-0 h-[2px] rounded-b", isActive(path, n.href) ? "bg-ink-900" : "bg-transparent")} />
-                {n.label}
+                <span className="whitespace-nowrap">{n.short ?? n.label}</span>
                 {n.badge ? <span className="num absolute right-2 top-1.5 rounded-sm bg-warn px-1 text-[10.5px] font-semibold text-white">{n.badge}</span> : null}
               </Link>
             </li>

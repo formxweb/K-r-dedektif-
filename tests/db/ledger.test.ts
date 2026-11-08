@@ -69,6 +69,12 @@ describe("açılış + alış + satış (açık dönem)", () => {
       const m = await movements(q, cay);
       expect(m).toHaveLength(1);
       expect(m[0]).toMatchObject({ movement_type: "opening", stock_after: "10.000", avg_cost_after: "5.0000" });
+      // Hızlı yol: kayıtlı (booked) ve hesaplanan değerler aynı, satır ürüne bağlı
+      const mv = await one<{ qty: string; total_cost: string; calc_total_cost: string; cost_known: boolean }>(
+        q, "select qty::text, total_cost::text, calc_total_cost::text, cost_known from public.inventory_movements where product_id = $1", [cay]);
+      expect(mv).toEqual({ qty: "10.000", total_cost: "50.0000", calc_total_cost: "50.0000", cost_known: true });
+      const row = await one<{ product_id: string; target_type: string }>(q, "select product_id, target_type from public.import_rows where job_id = $1", [job]);
+      expect(row).toEqual({ product_id: cay, target_type: "product" });
     });
   });
 

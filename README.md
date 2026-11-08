@@ -42,12 +42,12 @@ npm run dev
 
 Migration'lar `supabase/migrations/` altında, sırayla uygulanır.
 
-### Supabase Auth ayarı (bir kez)
+### Canlı ortam
 
-E-posta doğrulama ve şifre sıfırlama bağlantılarının doğru adrese dönmesi için Supabase panelinde **Authentication → URL Configuration**:
-
-- **Site URL:** canlı adres (ör. `https://kardedektifi.vercel.app`)
-- **Redirect URLs:** `https://kardedektifi.vercel.app/auth/callback` ve yerel geliştirme için `http://localhost:3000/auth/callback`
+- Uygulama: https://kardedektifi.vercel.app (Vercel, fra1)
+- Veritabanı: Supabase `kardedektifi` (eu-central-1)
+- Auth: Site URL ve dönüş adresleri (`/auth/callback`) ayarlı, e-posta doğrulama açık, en az 8 karakter şifre.
+- Not: Supabase'in yerleşik e-posta servisi saatlik düşük limitlidir; birden fazla kullanıcıya açılmadan önce özel SMTP (ör. Resend) tanımlanmalı.
 
 ## Testler
 

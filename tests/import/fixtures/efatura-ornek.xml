@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Test için elle yazılmış UBL-TR 1.2 örneği (gerçek bir faturaya ait değildir). -->
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+  <cbc:ProfileID>TICARIFATURA</cbc:ProfileID>
+  <cbc:ID>ABC2026000000123</cbc:ID>
+  <cbc:UUID>3f2b8c1e-5d4a-4e2b-9c7d-1a2b3c4d5e6f</cbc:UUID>
+  <cbc:IssueDate>2026-11-03</cbc:IssueDate>
+  <cbc:InvoiceTypeCode>SATIS</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>TRY</cbc:DocumentCurrencyCode>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cac:PartyIdentification><cbc:ID schemeID="VKN">1234567890</cbc:ID></cac:PartyIdentification>
+      <cac:PartyIdentification><cbc:ID schemeID="MERSISNO">0123456789000015</cbc:ID></cac:PartyIdentification>
+      <cac:PartyName><cbc:Name>Örnek Gıda Toptan Ltd. Şti.</cbc:Name></cac:PartyName>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AllowanceCharge>
+    <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
+    <cbc:Amount currencyID="TRY">10.00</cbc:Amount>
+  </cac:AllowanceCharge>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="TRY">29.90</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="TRY">390.00</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="TRY">3.90</cbc:TaxAmount>
+      <cbc:Percent>1</cbc:Percent>
+      <cac:TaxCategory><cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory>
+    </cac:TaxSubtotal>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="TRY">130.00</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="TRY">26.00</cbc:TaxAmount>
+      <cbc:Percent>20</cbc:Percent>
+      <cac:TaxCategory><cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="TRY">530.00</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="TRY">520.00</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="TRY">549.90</cbc:TaxInclusiveAmount>
+    <cbc:AllowanceTotalAmount currencyID="TRY">10.00</cbc:AllowanceTotalAmount>
+    <cbc:PayableAmount currencyID="TRY">549.90</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  <cac:InvoiceLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="BX">2</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="TRY">400.00</cbc:LineExtensionAmount>
+    <cac:AllowanceCharge>
+      <cbc:ChargeIndicator>false</cbc:ChargeIndicator>
+      <cbc:MultiplierFactorNumeric>0.2</cbc:MultiplierFactorNumeric>
+      <cbc:Amount currencyID="TRY">100.00</cbc:Amount>
+    </cac:AllowanceCharge>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="TRY">4.00</cbc:TaxAmount>
+      <cac:TaxSubtotal>
+        <cbc:TaxableAmount currencyID="TRY">400.00</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="TRY">4.00</cbc:TaxAmount>
+        <cbc:Percent>1</cbc:Percent>
+        <cac:TaxCategory><cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory>
+      </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>ÇAYKUR RİZE TURİST 1 KG</cbc:Name>
+      <cac:SellersItemIdentification><cbc:ID>CAY-001</cbc:ID></cac:SellersItemIdentification>
+      <cac:StandardItemIdentification><cbc:ID>8690000000011</cbc:ID></cac:StandardItemIdentification>
+    </cac:Item>
+    <cac:Price><cbc:PriceAmount currencyID="TRY">250.00</cbc:PriceAmount></cac:Price>
+  </cac:InvoiceLine>
+  <cac:InvoiceLine>
+    <cbc:ID>2</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="C62">10</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="TRY">130.00</cbc:LineExtensionAmount>
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="TRY">26.00</cbc:TaxAmount>
+      <cac:TaxSubtotal>
+        <cbc:TaxableAmount currencyID="TRY">130.00</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="TRY">26.00</cbc:TaxAmount>
+        <cbc:Percent>20</cbc:Percent>
+        <cac:TaxCategory><cac:TaxScheme><cbc:Name>KDV</cbc:Name><cbc:TaxTypeCode>0015</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory>
+      </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Name>Bulaşık Deterjanı 750 ml</cbc:Name>
+      <cac:SellersItemIdentification><cbc:ID>8690000000035</cbc:ID></cac:SellersItemIdentification>
+    </cac:Item>
+    <cac:Price><cbc:PriceAmount currencyID="TRY">13.00</cbc:PriceAmount></cac:Price>
+  </cac:InvoiceLine>
+</Invoice>

@@ -16,7 +16,11 @@ select
   pr.list_purchase_price_net::text as list_purchase_price_net,
   vr.rate::text as vat_rate,
   ls.last_sale_at,
-  fm.first_movement_at
+  fm.first_movement_at,
+  -- sıralama anahtarları (istemci bunları okumaz, sadece order by için)
+  coalesce(st.stock_after, 0) as stock_sort,
+  case when st.stock_after > 0 and st.avg_cost_after is not null
+       then st.stock_after * st.avg_cost_after else 0 end as value_sort
 from public.products p
 left join public.categories c on c.id = p.category_id
 left join lateral (

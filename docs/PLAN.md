@@ -1,7 +1,6 @@
-# KârDedektifi MVP — Şema ve Yapı Planı (taslak, onay bekliyor)
+# KârDedektifi MVP — Şema ve Yapı Planı
 
-Durum: 8 Kas 2026. Repo boş, `/samples` yok. Bu plan Fenix dosya formatından bağımsız kısımları kapsar.
-Aktarım profillerinin alan listesi, örnek dosyalar incelendikten sonra netleşecek.
+Durum: 8 Kas 2026 — uygulandı. Kararlar kullanıcı tarafından bana bırakıldı; uygulamadaki farklar aşağıda **Uygulama notu** olarak işaretli.
 
 ---
 
@@ -75,7 +74,7 @@ RLS: `private.is_member(organization_id)` (security definer) — her tabloda sel
 - `alerts` — tür (marj düşüşü, fatura toplam farkı, sayım farkı, maliyet revizyonu, bilinmeyen maliyet), ürün, veri, durum
 
 ### Bütünlük (bölüm 11 için ek tablolar)
-- `accounting_periods` — ay, açık/kapalı, kapatan, tarih
+- ~~`accounting_periods`~~ → **Uygulama notu:** ayrı tablo yerine `organizations.closed_through` (bu tarih dahil öncesi kapalı). Kapalı aylar her zaman bir önek olduğundan "ilk açık ay" tek anlamlıdır; kapatma/yeniden açma audit log'a düşer.
 - `cost_revisions` — hangi işlem tetikledi, hangi hareket, eski/yeni birim maliyet, fark, ay
 - `audit_log` — kim, ne, hangi kayıt, önce/sonra (jsonb). Finansal tablolarda trigger ile otomatik.
 
@@ -129,3 +128,15 @@ tests/
 docs/            PLAN.md, fenix-format.md (örnek inceleme raporu)
 samples/         gerçek Fenix dosyaları — git'e GİRMEZ (.gitignore)
 ```
+
+---
+
+## 5. Uygulama notları
+
+- **Maliyet zinciri veritabanında** (plpgsql), TypeScript'te değil: commit/geri alma tek transaction'da ve istemciden atlanamaz. Önizleme aynı fonksiyonu çalıştırıp savepoint ile geri sarar.
+- **Hareket kolonları ikili:** `qty/unit_cost/total_cost/cost_known` kayda geçen (kâr tablosu), `calc_*` güncel zincir. Açık dönemde eşit; kapalı dönemde kayıtlı değer donar.
+- **Açılış ve sayım anlık görüntüdür** (`snapshot_qty`): geçmiş tarihli bir alış sayımdan sonraki stoğu değiştirmez, sadece sayım farkının tutarını değiştirir.
+- **Fiş satırları** ürün × gün başına tek stok hareketine toplanır (faturalar gün bazlı olduğu için maliyet değişmez).
+- **Marj uyarısı** ortalama maliyetle değil, yerine koyma maliyetiyle (yeni alış fiyatı) hesaplanır; önerilen fiyat = mevcut fiyat × yeni maliyet / eski maliyet, ayarlanan adıma yukarı yuvarlanır.
+- **Sipariş önerisi:** Holt (α=0,4, β=0,2), güvenlik stoğu z=1,65 × σ × √((teslim+aralık)/7), koli katına yukarı, raf ömrü sınırı, dönem işareti çarpanı. Aylık toplam verisinde güven en fazla "düşük".
+- **Yoldaki sipariş:** "Sipariş verdim" işaretlenen öneri satırları, o tedarikçiden fatura gelene kadar (en fazla 45 gün) stoktan düşülmeden ihtiyaçtan düşülür.
